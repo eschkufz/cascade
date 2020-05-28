@@ -52,9 +52,10 @@ class fdbuf : public std::streambuf {
     typedef std::streambuf::off_type off_type;
 
     // Constructors:
-    explicit fdbuf(int fd);
+    explicit fdbuf(int fd, uint32_t gid = 0);
     ~fdbuf() override = default;
 
+    uint32_t get_gid();
   private:
     // File Descriptor
     int fd_;
@@ -62,8 +63,8 @@ class fdbuf : public std::streambuf {
     std::vector<char_type> get_;
     // Put/Output/Write Area
     std::vector<char_type> put_;
-    // This shit works.
-    uint32_t helper_;
+    // The global id.
+    uint32_t gid_;
 
     // Locales:
     void imbue(const std::locale& loc) override;
@@ -112,17 +113,29 @@ class ofdstream : public std::ostream {
 
 class fdstream : public std::iostream {
   public:
-    fdstream(int fd);
+    fdstream(int fd, uint32_t gid = 0);
     ~fdstream() override = default;
 
+  uint32_t get_gid();
   private:
     fdbuf buf_;
 };
 
-inline fdbuf::fdbuf(int fd) : get_(1), put_(1) {
+inline uint32_t fdstream::get_gid()
+{
+  return this->buf_.get_gid();
+}
+
+inline fdbuf::fdbuf(int fd, uint32_t gid) : get_(1), put_(1) {
   fd_ = fd;
+  this.gid_ = gid;
   setg(get_.data(), get_.data(), get_.data());
   setp(put_.data(), put_.data()+1);
+}
+
+inline fdbuf::get_gid()
+{
+  return this->gid_;
 }
 
 inline void fdbuf::imbue(const std::locale& loc) {
@@ -152,7 +165,7 @@ inline fdbuf::pos_type fdbuf::seekpos(pos_type pos, std::ios_base::openmode whic
 }
 
 inline int fdbuf::sync() {
-  const uint32_t arr[2] = {pptr()- pbase(), this->helper_};
+  const uint32_t arr[2] = {pptr()- pbase(), this->gid_};
   if (n == 0) {
     return 0;
   } else if (send((const char*)arr, sizeof(arr)) == -1) {
@@ -182,7 +195,7 @@ inline fdbuf::int_type fdbuf::underflowHelper()
   if (recv((char_type*)arr, sizeof(arr)) == -1) {
     return traits_type::eof();
   }
-  this->helper_ = arr[1];
+  this->gid_ = arr[1];
   n = arr[0];
   if (n > get_.size()) {
     get_.resize(n);
