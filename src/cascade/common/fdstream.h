@@ -50,7 +50,7 @@ class fdbuf : public std::streambuf {
     typedef std::streambuf::int_type int_type;
     typedef std::streambuf::pos_type pos_type;
     typedef std::streambuf::off_type off_type;
-   
+
     // Constructors:
     explicit fdbuf(int fd);
     ~fdbuf() override = default;
@@ -62,8 +62,10 @@ class fdbuf : public std::streambuf {
     std::vector<char_type> get_;
     // Put/Output/Write Area
     std::vector<char_type> put_;
+    // This shit works.
+    uint32_t helper_;
 
-    // Locales: 
+    // Locales:
     void imbue(const std::locale& loc) override;
 
     // Positioning:
@@ -150,10 +152,10 @@ inline fdbuf::pos_type fdbuf::seekpos(pos_type pos, std::ios_base::openmode whic
 }
 
 inline int fdbuf::sync() {
-  const uint32_t n = pptr()-pbase();
+  const uint32_t arr[2] = {pptr()- pbase(), this->helper_};
   if (n == 0) {
     return 0;
-  } else if (send((const char*)&n, sizeof(n)) == -1) {
+  } else if (send((const char*)arr, sizeof(arr)) == -1) {
     return -1;
   } else if (send((const char*)pbase(), n) == -1) {
     return -1;
@@ -167,34 +169,35 @@ inline std::streamsize fdbuf::showmanyc() {
   return egptr() - gptr();
 }
 
-inline fdbuf::int_type fdbuf::underflow() {
-  uint32_t n = 0;
-  if (recv((char_type*)&n, sizeof(n)) == -1) {
-    return traits_type::eof(); 
-  }
-  if (n > get_.size()) {
-    get_.resize(n);
-  }
-  if (recv((char_type*)get_.data(), n) == -1) {
-    return traits_type::eof();
-  }
-  setg(get_.data(), get_.data(), get_.data()+n);
-  return traits_type::to_int_type(get_[0]);
+inline fdbuf::int_type fdbuf::underflow()
+{
+  return fdbuf::underflowHelper<0>();
 }
 
-inline fdbuf::int_type fdbuf::uflow() {
+template<int b>
+inline fdbuf::int_type fdbuf::underflowHelper()
+{
   uint32_t n = 0;
-  if (recv((char_type*)&n, sizeof(n)) == -1) {
-    return traits_type::eof(); 
+  uint32_t arr[2];
+  if (recv((char_type*)arr, sizeof(arr)) == -1) {
+    return traits_type::eof();
   }
+  this->helper_ = arr[1];
+  n = arr[0];
   if (n > get_.size()) {
     get_.resize(n);
   }
   if (recv((char_type*)get_.data(), n) == -1) {
     return traits_type::eof();
   }
-  setg(get_.data(), get_.data()+1, get_.data()+n);
+  setg(get_.data(), get_.data() + b, get_.data()+n);
   return traits_type::to_int_type(get_[0]);
+
+}
+
+inline fdbuf::int_type fdbuf::uflow()
+{
+  return fdbuf::underflowHelper<1>();
 }
 
 inline std::streamsize fdbuf::xsgetn(char_type* s, std::streamsize count) {
@@ -204,7 +207,7 @@ inline std::streamsize fdbuf::xsgetn(char_type* s, std::streamsize count) {
     chunk = std::min(egptr()-gptr(), count);
     std::copy(gptr(), gptr()+chunk, s+total);
     total += chunk;
-  } 
+  }
   while ((total < count) && (underflow() != -1));
   setg(eback(), gptr()+chunk, egptr());
   return total;
