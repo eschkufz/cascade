@@ -174,7 +174,7 @@ bool ProxyCompiler::open(const string& loc) {
   rpc.deserialize(*ci.async_sock);
   assert(rpc.type_ == Rpc::Type::OKAY);
   ci.pid = rpc.pid_;
-  this->gid_ = ci.async_sock.buf_.gid_;
+  this->gid_ = ci.async_sock->get_gid();
 
   // Step 2: Open the synchronous socket and send a register request. This
   // time around, send the pid so that the new socket can be associated with
@@ -194,7 +194,7 @@ bool ProxyCompiler::open(const string& loc) {
   return true;
 }
 
-sockstream* ProxyCompiler::get_sock(const string& loc, uint32_t gid = 0) {
+sockstream* ProxyCompiler::get_sock(const string& loc, uint32_t gid) {
   auto* sock = (loc.find(':') != string::npos) ? get_tcp_sock(loc, gid) : get_unix_sock(loc, gid);
   if (sock->error()) {
     delete sock;
@@ -203,7 +203,7 @@ sockstream* ProxyCompiler::get_sock(const string& loc, uint32_t gid = 0) {
   return sock;
 }
 
-sockstream* ProxyCompiler::get_tcp_sock(const string& loc, uint32_t gid = 0) {
+sockstream* ProxyCompiler::get_tcp_sock(const string& loc, uint32_t gid) {
   stringstream ss(loc);
   string host;
   uint32_t port;
@@ -212,8 +212,8 @@ sockstream* ProxyCompiler::get_tcp_sock(const string& loc, uint32_t gid = 0) {
   return new sockstream(host.c_str(), port, gid);
 }
 
-sockstream* ProxyCompiler::get_unix_sock(const string& loc, uint32_t gid = 0) {
-  return new sockstream(loc.c_str(), gid);
+sockstream* ProxyCompiler::get_unix_sock(const string& loc, uint32_t gid) {
+  return new sockstream(gid, loc.c_str());
 }
 
 } // namespace cascade::proxy

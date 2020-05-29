@@ -48,7 +48,7 @@ namespace cascade {
 class sockstream : public fdstream {
   public:
     sockstream(int fd, uint32_t gid = 0);
-    sockstream(const char* path, uint32_t gid = 0);
+    sockstream(uint32_t gid, const char* path);
     sockstream(const char* host, uint32_t port, uint32_t gid = 0);
     ~sockstream() override;
 
@@ -68,7 +68,7 @@ class sockstream : public fdstream {
 
 inline sockstream::sockstream(int fd, uint32_t gid) : fdstream(raw_fd(fd), gid) { }
 
-inline sockstream::sockstream(const char* path, uint32_t gid) : fdstream(unix_sock(path), gid) { }
+inline sockstream::sockstream(uint32_t gid, const char* path) : fdstream(unix_sock(path), gid) { }
 
 inline sockstream::sockstream(const char* host, uint32_t port, uint32_t gid) : fdstream(inet_sock(host, port), gid) { }
 
