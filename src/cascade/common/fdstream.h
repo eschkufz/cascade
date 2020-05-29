@@ -77,6 +77,7 @@ class fdbuf : public std::streambuf {
 
     // Get Area:
     std::streamsize showmanyc() override;
+    template<int b> int_type underflowHelper();
     int_type underflow() override;
     int_type uflow() override;
     std::streamsize xsgetn(char_type* s, std::streamsize count) override;
@@ -128,12 +129,12 @@ inline uint32_t fdstream::get_gid()
 
 inline fdbuf::fdbuf(int fd, uint32_t gid) : get_(1), put_(1) {
   fd_ = fd;
-  this.gid_ = gid;
+  this->gid_ = gid;
   setg(get_.data(), get_.data(), get_.data());
   setp(put_.data(), put_.data()+1);
 }
 
-inline fdbuf::get_gid()
+inline uint32_t fdbuf::get_gid()
 {
   return this->gid_;
 }
@@ -166,6 +167,7 @@ inline fdbuf::pos_type fdbuf::seekpos(pos_type pos, std::ios_base::openmode whic
 
 inline int fdbuf::sync() {
   const uint32_t arr[2] = {pptr()- pbase(), this->gid_};
+  const uint32_t n = arr[0];
   if (n == 0) {
     return 0;
   } else if (send((const char*)arr, sizeof(arr)) == -1) {
@@ -184,7 +186,7 @@ inline std::streamsize fdbuf::showmanyc() {
 
 inline fdbuf::int_type fdbuf::underflow()
 {
-  return fdbuf::underflowHelper<0>();
+  return this->underflowHelper<0>();
 }
 
 template<int b>
@@ -210,7 +212,7 @@ inline fdbuf::int_type fdbuf::underflowHelper()
 
 inline fdbuf::int_type fdbuf::uflow()
 {
-  return fdbuf::underflowHelper<1>();
+  return this->underflowHelper<1>();
 }
 
 inline std::streamsize fdbuf::xsgetn(char_type* s, std::streamsize count) {
@@ -290,7 +292,7 @@ inline ifdstream::ifdstream(int fd) : std::istream(&buf_), buf_(fd) { }
 
 inline ofdstream::ofdstream(int fd) : std::ostream(&buf_), buf_(fd) { }
 
-inline fdstream::fdstream(int fd) : std::iostream(&buf_), buf_(fd) { }
+inline fdstream::fdstream(int fd, uint32_t gid) : std::iostream(&buf_), buf_(fd, gid) { }
 
 } // namespace cascade
 

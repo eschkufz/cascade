@@ -89,7 +89,7 @@ class ProxyCompiler : public CoreCompiler {
 
     sockstream* get_sock(const std::string& loc, uint32_t gid = 0);
     sockstream* get_tcp_sock(const std::string& loc, uint32_t gid = 0);
-    sockstream* get_unix_sock(const std::string& loc uint32_t gid = 0);
+    sockstream* get_unix_sock(const std::string& loc, uint32_t gid = 0);
 };
 
 template <typename T>
