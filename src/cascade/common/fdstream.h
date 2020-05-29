@@ -166,8 +166,8 @@ inline fdbuf::pos_type fdbuf::seekpos(pos_type pos, std::ios_base::openmode whic
 }
 
 inline int fdbuf::sync() {
-  const uint32_t arr[2] = {pptr()- pbase(), this->gid_};
-  const uint32_t n = arr[0];
+  const uint32_t n = pptr() - pbase();
+  const uint32_t arr[2] = {n, this->gid_};
   if (n == 0) {
     return 0;
   } else if (send((const char*)arr, sizeof(arr)) == -1) {
