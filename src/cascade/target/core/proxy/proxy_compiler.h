@@ -105,7 +105,7 @@ inline ProxyCore<T>* ProxyCompiler::generic_compile(Engine::Id id, ModuleDeclara
 
   // Change __loc to "remote" and send a compile request via a temp socket.
   md->get_attrs()->set_or_replace("__loc", new String("remote"));
-  auto* sock = get_sock(loc);
+  auto* sock = get_sock(loc, this->gid_);
   if (sock == nullptr) {
     get_compiler()->error("Unable to establish connection with remote compiler");
     delete md;
