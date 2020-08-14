@@ -266,6 +266,9 @@ IF_TEXT     ([^`]*)
   yymore();
 }
 
+"`timescale"                 return yyParser::make_TIMESCALE(parser->get_loc());
+{DECIMAL}{SPACE}*[munpt]?[s] return yyParser::make_UNIT(parser->get_loc());
+
 "`"{IDENTIFIER} {
   parser->name_ = yytext;
   parser->name_ = parser->name_.substr(1);
