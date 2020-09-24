@@ -378,7 +378,8 @@ inline size_t AvmmLogic<V,A,T>::open_loop(VId clk, bool val, size_t itr) {
     while (handle_tasks()) {
       table_.write_control_var(table_.resume_index(), 1);
     }
-    return res;
+    // Note: res was recorded *before* the completion of the current iteration
+    return itr-res+1;
   } else {
     return itr;
   }
