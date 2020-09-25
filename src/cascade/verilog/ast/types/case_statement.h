@@ -62,6 +62,9 @@ class CaseStatement : public Statement {
     PTR_GET_SET(CaseStatement, Expression, cond)
     MANY_GET_SET(CaseStatement, CaseItem, items)
 
+    // Extended Interface:
+    bool has_default() const;
+
   private:
     VAL_ATTR(Type, type);
     PTR_ATTR(Expression, cond);
@@ -89,6 +92,15 @@ inline CaseStatement* CaseStatement::clone() const {
   auto* res = new CaseStatement(type_, cond_->clone());
   MANY_CLONE(items);
   return res;
+}
+
+inline bool CaseStatement::has_default() const {
+  for (auto i = begin_items(), ie = end_items(); i != ie; ++i) {
+    if ((*i)->empty_exprs()) {
+      return true;
+    }
+  }
+  return false;
 }
 
 } // namespace cascade 
