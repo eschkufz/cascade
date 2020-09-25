@@ -248,20 +248,28 @@ inline void Machinify<T>::Generate::visit(const CaseStatement* cs) {
 
   next_state();
 
-  auto* branch = new CaseStatement(cs->get_type(), cs->get_cond()->clone());
+  CaseStatement branch(cs->get_type(), cs->get_cond()->clone());
   size_t idx = 0;
   for (auto i = cs->begin_items(), ie = cs->end_items(); i != ie; ++i) {
-    branch->push_back_items(new CaseItem(
+    branch.push_back_items(new CaseItem(
       new BlockingAssign(
         new Identifier(new Id("__state"), new Number(Bits(std::numeric_limits<T>::digits, idx_))),
         new Number(Bits(std::numeric_limits<T>::digits, begins[idx++].first))
       )
     ));
     for (auto j = (*i)->begin_exprs(), je = (*i)->end_exprs(); j != je; ++j) {
-      branch->back_items()->push_back_exprs((*j)->clone());
+      branch.back_items()->push_back_exprs((*j)->clone());
     }
   }
-  append(begin.second, branch);
+  if (!cs->has_default()) {
+    branch.push_back_items(new CaseItem(
+      new BlockingAssign(
+        new Identifier(new Id("__state"), new Number(Bits(std::numeric_limits<T>::digits, idx_))),
+        new Number(Bits(std::numeric_limits<T>::digits, current_.first))
+      )
+    ));
+  }
+  append(begin.second, &branch);
   
   for (auto& e : ends) {
     transition(e.second, current_.first);
@@ -297,7 +305,7 @@ inline void Machinify<T>::Generate::visit(const ConditionalStatement* cs) {
 
   next_state();
 
-  auto* branch = new ConditionalStatement(
+  ConditionalStatement branch(
     cs->get_if()->clone(),
     new BlockingAssign(
       new Identifier(new Id("__state"), new Number(Bits(std::numeric_limits<T>::digits, idx_))),
@@ -308,7 +316,7 @@ inline void Machinify<T>::Generate::visit(const ConditionalStatement* cs) {
       new Number(Bits(std::numeric_limits<T>::digits, empty_else ? current_.first : else_begin.first))
     )
   );
-  append(begin.second, branch);
+  append(begin.second, &branch);
 
   transition(then_end.second, current_.first);
   if (!empty_else) {
