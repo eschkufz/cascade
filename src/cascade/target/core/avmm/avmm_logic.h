@@ -105,7 +105,6 @@ class AvmmLogic : public Logic {
     bool there_were_tasks_;
     VarTable<V,A,T> table_;
     std::unordered_map<FId, interfacestream*> streams_;
-    std::vector<std::pair<FId, interfacestream*>> stream_cache_;
 
     // Control Helpers:
     interfacestream* get_stream(FId fd);
@@ -297,7 +296,6 @@ inline void AvmmLogic<V,A,T>::finalize() {
   // Iterate over tasks. Now that we have the program state in place, we can
   // cache pointers to streams to make system task handling faster. Remember,
   // the task index starts from 1.
-  stream_cache_.resize(tasks_.size(), std::make_pair(0, nullptr));
   for (size_t i = 1, ie = tasks_.size(); i < ie; ++i) {
     const auto* t = tasks_[i];
     const Expression* fd = nullptr;
@@ -319,7 +317,6 @@ inline void AvmmLogic<V,A,T>::finalize() {
     }
     fd->accept(&sync_);
     const auto fd_val = eval_.get_value(fd).to_uint();
-    stream_cache_[i] = make_pair(fd_val, get_stream(fd_val));
   }
 }
 
@@ -443,73 +440,62 @@ inline bool AvmmLogic<V,A,T>::handle_tasks() {
     }
     case Node::Tag::fflush_statement: {
       const auto* fs = static_cast<const FflushStatement*>(task);
-      auto is = stream_cache_[task_id];
-      if (is.second == nullptr) {
-        fs->accept_fd(&sync_);
-        is.first = eval_.get_value(fs->get_fd()).to_uint();
-        is.second = get_stream(is.first);
-      }
-      is.second->clear();
-      is.second->flush();
-      set_feof_mask(is.first, is.second->eof());
+      fs->accept_fd(&sync_);
+      const auto fd = eval_.get_value(fs->get_fd()).to_uint();
+      auto* is = get_stream(fd);
+      
+      is->clear();
+      is->flush();
+      set_feof_mask(fd, is->eof());
 
       break;
     }
     case Node::Tag::fseek_statement: {
       const auto* fs = static_cast<const FseekStatement*>(task);
-      auto is = stream_cache_[task_id];
-      if (is.second == nullptr) {
-        fs->accept_fd(&sync_);
-        is.first = eval_.get_value(fs->get_fd()).to_uint();
-        is.second = get_stream(is.first);
-      }
+      fs->accept_fd(&sync_);
+      const auto fd = eval_.get_value(fs->get_fd()).to_uint();
+      auto* is = get_stream(fd);
 
       fs->accept_offset(&sync_);
       const auto offset = eval_.get_value(fs->get_offset()).to_uint();
       const auto op = eval_.get_value(fs->get_op()).to_uint();
       const auto way = (op == 0) ? std::ios_base::beg : (op == 1) ? std::ios_base::cur : std::ios_base::end;
 
-      is.second->clear();
-      is.second->seekg(offset, way); 
-      is.second->seekp(offset, way); 
-      set_feof_mask(is.first, is.second->eof());
+      is->clear();
+      is->seekg(offset, way); 
+      is->seekp(offset, way); 
+      set_feof_mask(fd, is->eof());
 
       break;
     }
     case Node::Tag::get_statement: {
       const auto* gs = static_cast<const GetStatement*>(task);
-      auto is = stream_cache_[task_id];
-      if (is.second == nullptr) {
-        gs->accept_fd(&sync_);
-        is.first = eval_.get_value(gs->get_fd()).to_uint();
-        is.second = get_stream(is.first);
-      }
+      gs->accept_fd(&sync_);
+      const auto fd = eval_.get_value(gs->get_fd()).to_uint();
+      auto* is = get_stream(fd);
 
-      scanf_.read_without_update(*is.second, &eval_, gs);
+      scanf_.read_without_update(*is, &eval_, gs);
       if (gs->is_non_null_var()) {
         const auto* r = Resolve().get_resolution(gs->get_var());
         assert(r != nullptr);
         table_.write_var(slot_, r, scanf_.get());
       }
-      if (is.second->eof()) {
-        set_feof_mask(is.first, true);
+      if (is->eof()) {
+        set_feof_mask(fd, true);
       }
 
       break;
     }  
     case Node::Tag::put_statement: {
       const auto* ps = static_cast<const PutStatement*>(task);
-      auto is = stream_cache_[task_id];
-      if (is.second == nullptr) {
-        ps->accept_fd(&sync_);
-        is.first = eval_.get_value(ps->get_fd()).to_uint();
-        is.second = get_stream(is.first);
-      }
+      ps->accept_fd(&sync_);
+      const auto fd = eval_.get_value(ps->get_fd()).to_uint();
+      auto* is = get_stream(fd);
 
       ps->accept_expr(&sync_);
-      printf_.write(*is.second, &eval_, ps);
-      if (is.second->eof()) {
-        set_feof_mask(is.first, true);
+      printf_.write(*is, &eval_, ps);
+      if (is->eof()) {
+        set_feof_mask(fd, true);
       }
 
       break;
