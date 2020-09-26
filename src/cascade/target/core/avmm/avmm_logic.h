@@ -161,6 +161,12 @@ inline AvmmLogic<V,A,T>::AvmmLogic(Interface* interface, ModuleDeclaration* src,
   cb_ = nullptr;
   slot_ = slot;
   tasks_.push_back(nullptr);
+
+  eval_.set_feof_handler([this](Evaluate* eval, const FeofExpression* fe) {
+    fe->accept_fd(&sync_);
+    const auto fd = eval_.get_value(fe->get_fd()).to_uint();
+    return get_stream(fd)->eof();
+  });
 }
 
 template <size_t V, typename A, typename T>
