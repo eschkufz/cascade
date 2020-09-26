@@ -132,6 +132,9 @@ TEST(simple, declaration_1) {
 TEST(simple, define_1) {
   run_code("regression/minimal","share/cascade/test/regression/simple/define_1.v", "22");
 }
+TEST(simple, feof_1) {
+  run_code("regression/avalon32","share/cascade/test/regression/simple/feof_1.v", "0111");
+}
 TEST(simple, fifo_1) {
   run_code("regression/minimal","share/cascade/test/regression/simple/fifo_1.v", "1000000001100200300410");
 }

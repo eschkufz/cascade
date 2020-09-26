@@ -136,12 +136,22 @@ class AvmmLogic : public Logic {
         void visit(const YieldStatement* ys) override;
     };
 
+    // Synchronizes the state of streams opened with fopen
+    class StreamSync : public Visitor {
+      public:
+        explicit StreamSync(AvmmLogic* av);
+        ~StreamSync() override = default;
+      private:
+        AvmmLogic* av_;
+        void visit(const FopenExpression* fe) override;
+    };
+
     // Synchronizes the locations in the variable table which correspond to the
     // identifiers which appear in an AST subtree. 
-    class Sync : public Visitor {
+    class ValSync : public Visitor {
       public:
-        explicit Sync(AvmmLogic* av);
-        ~Sync() override = default;
+        explicit ValSync(AvmmLogic* av);
+        ~ValSync() override = default;
       private:
         AvmmLogic* av_;
         void visit(const Identifier* id) override;
@@ -149,7 +159,7 @@ class AvmmLogic : public Logic {
 
     // Evaluation Helpers:
     Evaluate eval_;
-    Sync sync_;
+    ValSync sync_;
     Scanf scanf_;
     Printf printf_;
 };
@@ -293,31 +303,13 @@ inline void AvmmLogic<V,A,T>::set_input(const Input* i) {
 
 template <size_t V, typename A, typename T>
 inline void AvmmLogic<V,A,T>::finalize() {
-  // Iterate over tasks. Now that we have the program state in place, we can
-  // cache pointers to streams to make system task handling faster. Remember,
-  // the task index starts from 1.
-  for (size_t i = 1, ie = tasks_.size(); i < ie; ++i) {
-    const auto* t = tasks_[i];
-    const Expression* fd = nullptr;
-    switch (t->get_tag()) {
-      case Node::Tag::get_statement:
-        fd = static_cast<const GetStatement*>(t)->get_fd();
-        break;
-      case Node::Tag::fflush_statement:
-        fd = static_cast<const FflushStatement*>(t)->get_fd();
-        break;
-      case Node::Tag::put_statement: 
-        fd = static_cast<const PutStatement*>(t)->get_fd();
-        break;
-      case Node::Tag::fseek_statement: 
-        fd = static_cast<const FseekStatement*>(t)->get_fd();
-        break;
-      default:
-        continue;
-    }
-    fd->accept(&sync_);
-    const auto fd_val = eval_.get_value(fd).to_uint();
-  }
+  // Note: We ignore the six standard streams, which can never be in the eof
+  // state.
+  // Note: Referencing a file descriptor which was not returned by a call to
+  // fopen is undefined. Iterating over these variable is sufficent for
+  // synchronizing stream state.
+  StreamSync ss(this);
+  src_->accept(&ss);
 }
 
 template <size_t V, typename A, typename T>
@@ -638,12 +630,31 @@ inline void AvmmLogic<V,A,T>::Inserter::visit(const YieldStatement* ys) {
 }
 
 template <size_t V, typename A, typename T>
-inline AvmmLogic<V,A,T>::Sync::Sync(AvmmLogic* av) : Visitor() {
+inline AvmmLogic<V,A,T>::StreamSync::StreamSync(AvmmLogic* av) : Visitor() {
   av_ = av;
 }
 
 template <size_t V, typename A, typename T>
-inline void AvmmLogic<V,A,T>::Sync::visit(const Identifier* id) {
+inline void AvmmLogic<V,A,T>::StreamSync::visit(const FopenExpression* fe) {
+  assert(fs->get_parent()->is_subclass_of(Node::Tag::declaration));
+  const auto* d = static_cast<const Declaration*>(fe->get_parent());
+  d->accept_id(&av_->sync_);
+  const auto fd = av_->eval_.get_value(d->get_id()).to_uint();
+
+  auto* is = av_->get_stream(fd);
+  is->peek();
+  if (is->eof()) {
+    av_->set_feof_mask(fd, true);
+  } 
+}
+
+template <size_t V, typename A, typename T>
+inline AvmmLogic<V,A,T>::ValSync::ValSync(AvmmLogic* av) : Visitor() {
+  av_ = av;
+}
+
+template <size_t V, typename A, typename T>
+inline void AvmmLogic<V,A,T>::ValSync::visit(const Identifier* id) {
   id->accept_dim(this);
   const auto* r = Resolve().get_resolution(id);
   assert(r != nullptr);
