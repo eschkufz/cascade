@@ -547,7 +547,8 @@ inline bool AvmmLogic<V,A,T>::handle_tasks() {
 
 template <size_t V, typename A, typename T>
 inline void AvmmLogic<V,A,T>::set_feof_mask(FId fd, bool val) {
-  table_.write_control_var(table_.feof_index(), (fd << 1) | (val ? 1 : 0));
+  const auto fid = fd & 0x7fff'ffff;
+  table_.write_control_var(table_.feof_index(), (fid << 1) | (val ? 1 : 0));
 }
 
 template <size_t V, typename A, typename T>
