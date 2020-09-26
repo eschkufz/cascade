@@ -107,9 +107,6 @@ class AvmmLogic : public Logic {
     std::unordered_map<FId, interfacestream*> streams_;
     std::vector<std::pair<FId, interfacestream*>> stream_cache_;
 
-    // Stream Caching Helpers:
-    bool is_constant(const Expression* e) const;
-
     // Control Helpers:
     interfacestream* get_stream(FId fd);
     bool handle_tasks();
@@ -404,63 +401,6 @@ inline const Identifier* AvmmLogic<V,A,T>::open_loop_clock() {
     return nullptr;
   }
   return *ModuleInfo(src_).inputs().begin();
-}
-
-template <size_t V, typename A, typename T>
-inline bool AvmmLogic<V,A,T>::is_constant(const Expression* e) const {
-  // Numbers are constants
-  if (e->is(Node::Tag::number)) {
-    return true;
-  }
-  // Anything other than an identifier might not be
-  if (!e->is(Node::Tag::identifier)) {
-    return false; 
-  }
-
-  // Resolve this id 
-  const auto* id = static_cast<const Identifier*>(e);
-  const auto* r = Resolve().get_resolution(id);
-  assert(r != nullptr);
-  // Anything other than a reg declaration might not be a constant
-  const auto* p = r->get_parent();
-  if (!p->is(Node::Tag::reg_declaration)) {
-    return false;
-  }
-
-  // Anything other than a number or fopen val might not be constant
-  const auto* d = static_cast<const RegDeclaration*>(p);
-  const auto fo = d->get_val()->is(Node::Tag::fopen_expression);
-  const auto n = d->get_val()->is(Node::Tag::number);
-  if (!fo && !n) {
-    return false;
-  }
-
-  // If this fd ever appears on the lhs of an assignment, it might not be a constant
-  for (auto i = Resolve().use_begin(r), ie = Resolve().use_end(r); i != ie; ++i) {
-    const auto* p = (*i)->get_parent();
-    switch (p->get_tag()) {
-      case Node::Tag::blocking_assign:
-        if (static_cast<const BlockingAssign*>(p)->get_lhs() == *i) {
-          return false;
-        }
-        break;
-      case Node::Tag::nonblocking_assign:
-        if (static_cast<const NonblockingAssign*>(p)->get_lhs() == *i) {
-          return false;
-        }
-        break;
-      case Node::Tag::variable_assign:
-        if (static_cast<const VariableAssign*>(p)->get_lhs() == *i) {
-          return false;
-        }
-        break;
-      default:
-        assert(false);
-    }
-  }
-
-  // This is definitely a constant
-  return true;
 }
 
 template <size_t V, typename A, typename T>
