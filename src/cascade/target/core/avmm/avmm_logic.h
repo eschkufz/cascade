@@ -111,6 +111,9 @@ class AvmmLogic : public Logic {
     interfacestream* get_stream(FId fd);
     bool handle_tasks();
 
+    // Feof Helpers:
+    void set_feof_mask(FId fd, bool val);
+
     // Indexes system tasks and inserts the identifiers which appear in those
     // tasks into the variable table.
     class Inserter : public Visitor {
@@ -448,7 +451,7 @@ inline bool AvmmLogic<V,A,T>::handle_tasks() {
       }
       is.second->clear();
       is.second->flush();
-      table_.write_control_var(table_.feof_index(), (is.first << 1) | is.second->eof());
+      set_feof_mask(is.first, is.second->eof());
 
       break;
     }
@@ -469,7 +472,7 @@ inline bool AvmmLogic<V,A,T>::handle_tasks() {
       is.second->clear();
       is.second->seekg(offset, way); 
       is.second->seekp(offset, way); 
-      table_.write_control_var(table_.feof_index(), (is.first << 1) | is.second->eof());
+      set_feof_mask(is.first, is.second->eof());
 
       break;
     }
@@ -489,7 +492,7 @@ inline bool AvmmLogic<V,A,T>::handle_tasks() {
         table_.write_var(slot_, r, scanf_.get());
       }
       if (is.second->eof()) {
-        table_.write_control_var(table_.feof_index(), (is.first << 1) | 1);
+        set_feof_mask(is.first, true);
       }
 
       break;
@@ -506,7 +509,7 @@ inline bool AvmmLogic<V,A,T>::handle_tasks() {
       ps->accept_expr(&sync_);
       printf_.write(*is.second, &eval_, ps);
       if (is.second->eof()) {
-        table_.write_control_var(table_.feof_index(), (is.first << 1) | 1);
+        set_feof_mask(is.first, true);
       }
 
       break;
@@ -540,6 +543,11 @@ inline bool AvmmLogic<V,A,T>::handle_tasks() {
       break;
   }
   return true;
+}
+
+template <size_t V, typename A, typename T>
+inline void AvmmLogic<V,A,T>::set_feof_mask(FId fd, bool val) {
+  table_.write_control_var(table_.feof_index(), (fd << 1) | (val ? 1 : 0));
 }
 
 template <size_t V, typename A, typename T>
