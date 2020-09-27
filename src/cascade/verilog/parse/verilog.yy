@@ -244,6 +244,7 @@ cascade::SeqBlock* desugar_io(bool input, const cascade::Expression* fd, InItr b
 %token SYS_SCANF       "$scanf"
 %token SYS_SHOWSCOPES  "$showscopes"
 %token SYS_SHOWVARS    "$showvars"
+%token SYS_TARGET      "$target"
 %token SYS_WARNING     "$warning"
 %token SYS_WRITE       "$write"
 %token SYS_YIELD       "$yield"
@@ -424,6 +425,7 @@ cascade::SeqBlock* desugar_io(bool input, const cascade::Expression* fd, InItr b
 /* A.8.3 Expressions */
 %type <ConditionalExpression*> conditional_expression
 %type <FeofExpression*> feof_expression
+%type <TargetExpression*> target_expression
 %type <Expression*> expression
 %type <Expression*> mintypmax_expression
 %type <Expression*> range_expression
@@ -1862,6 +1864,9 @@ feof_expression
     $$ = new FeofExpression($3);
     parser->set_loc($$);
   }
+target_expression
+  : SYS_TARGET OPAREN CPAREN { $$ = new TargetExpression(); parser->set_loc($$); }
+  | SYS_TARGET { $$ = new TargetExpression(); parser->set_loc($$); }
 expression
   : primary { 
     $$ = $1; 
@@ -1943,6 +1948,7 @@ expression
   }
   | conditional_expression { $$ = $1; }
   | feof_expression { $$ = $1; }
+  | target_expression { $$ = $1; }
   ;
 mintypmax_expression
   : expression { $$ = $1; }

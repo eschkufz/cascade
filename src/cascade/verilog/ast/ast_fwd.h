@@ -45,6 +45,7 @@ class Node;
     class ConditionalExpression;
     class FeofExpression;
     class FopenExpression;
+    class TargetExpression;
     class Primary;
       class Concatenation;
       class Identifier;

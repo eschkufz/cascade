@@ -146,6 +146,7 @@ class Evaluate : public Editor {
     void edit(ConditionalExpression* ce) override;
     void edit(FeofExpression* fe) override;
     void edit(FopenExpression* fe) override;
+    void edit(TargetExpression* te) override;
     void edit(Concatenation* c) override;
     void edit(Identifier* id) override;
     void edit(MultipleConcatenation* mc) override;
@@ -169,6 +170,7 @@ class Evaluate : public Editor {
       void edit(ConditionalExpression* ce) override;
       void edit(FeofExpression* fe) override;
       void edit(FopenExpression* fe) override;
+      void edit(TargetExpression* te) override;
       void edit(Concatenation* c) override;
       void edit(Identifier* id) override;
       void edit(MultipleConcatenation* mc) override;
@@ -189,6 +191,7 @@ class Evaluate : public Editor {
       void edit(ConditionalExpression* ce) override;
       void edit(FeofExpression* fe) override;
       void edit(FopenExpression* fe) override;
+      void edit(TargetExpression* te) override;
       void edit(Concatenation* c) override;
       void edit(Identifier* id) override;
       void edit(MultipleConcatenation* mc) override;
@@ -210,6 +213,7 @@ class Evaluate : public Editor {
       void edit(ConditionalExpression* ce) override;
       void edit(FeofExpression* fe) override;
       void edit(FopenExpression* fe) override;
+      void edit(TargetExpression* te) override;
       void edit(Identifier* id) override;
       void edit(MultipleConcatenation* mc) override;
       void edit(Number* n) override;

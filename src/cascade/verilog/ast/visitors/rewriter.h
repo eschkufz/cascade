@@ -54,6 +54,7 @@ struct Rewriter {
   virtual Expression* rewrite(ConditionalExpression* ce);
   virtual Expression* rewrite(FeofExpression* fe);
   virtual Expression* rewrite(FopenExpression* fe);
+  virtual Expression* rewrite(TargetExpression* te);
   virtual Expression* rewrite(Concatenation* c);
   virtual Expression* rewrite(Identifier* i);
   virtual Expression* rewrite(MultipleConcatenation* mc);

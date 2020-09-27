@@ -58,6 +58,7 @@
 #include "verilog/transform/event_expand.h"
 #include "verilog/transform/index_normalize.h"
 #include "verilog/transform/loop_unroll.h"
+#include "verilog/transform/replace_introspection_exprs.h"
 
 using namespace std;
 
@@ -310,28 +311,9 @@ void Module::Instantiator::visit(const ModuleInstantiation* mi) {
 
 
 
-ModuleDeclaration* Module::regenerate_ir_source(size_t ignore) {
-  auto* md = rt_->get_isolate()->isolate(psrc_, ignore);
-  const auto* std = md->get_attrs()->get<String>("__std");
-  const auto is_logic = (std != nullptr) && (std->get_readable_val() == "logic");
-  if (is_logic) {
-    ModuleInfo(md).invalidate();
-    AssignUnpack().run(md);
-    IndexNormalize().run(md);
-    LoopUnroll().run(md);
-    DeAlias().run(md);
-    ConstantProp().run(md);
-    EventExpand().run(md);
-    ControlMerge().run(md);
-    DeadCodeEliminate().run(md);
-    BlockFlatten().run(md);
-  }
-  return md;
-}
-
 void Module::compile_and_replace(size_t ignore) {
-  // Generate new code and bump the sequence number for this module
-  auto* md = regenerate_ir_source(ignore); 
+  // Generate new isolate code and bump the sequence number for this module
+  auto* md = rt_->get_isolate()->isolate(psrc_, ignore);
   const auto this_version = ++version_;
 
   // Record human readable name for this module
@@ -370,19 +352,34 @@ void Module::compile_and_replace(ModuleDeclaration* md, size_t version, const st
   } else {
     md2 = new ModuleDeclaration(new Attributes(), new Identifier("null"));
   }
-  // Invariant: Initial blocks are removed from pass n compilations. Note that this may
-  // trigger additional dead code eliminations. These must be performed here to guarantee
-  // deterministic code generation for programs which are compiled multiple times.
-  if (pass == 1) {
-    DeleteInitial().run(md2);
-    DeadCodeEliminate().run(md2);
-  }
+
   // Invariant: First pass for logic must be sw
   if (std->eq("logic") && (pass == 1) && !md->get_attrs()->get<String>("__target")->eq("sw")) {
     rt_->get_compiler()->fatal("Pass 1 compilation for logic must target software!");
     delete md;
     delete md2;
     return;
+  }
+  // Invariant: Initial blocks are removed from pass n compilations. 
+  if (pass == 1) {
+    DeleteInitial().run(md2);
+  }
+  // Remaining passes follow. We do extra work here by doing this for every jit pass, but that's
+  // the price we pay for having introspection variables. Since this is an experimental feature,
+  // we may end up relocating this logic back to compile_and_replace(size_t).
+  const auto is_logic = (std != nullptr) && (std->get_readable_val() == "logic");
+  if (is_logic) {
+    ModuleInfo(md).invalidate();
+    ReplaceIntrospectionExprs().run(md);
+    AssignUnpack().run(md);
+    IndexNormalize().run(md);
+    LoopUnroll().run(md);
+    DeAlias().run(md);
+    ConstantProp().run(md);
+    EventExpand().run(md);
+    ControlMerge().run(md);
+    DeadCodeEliminate().run(md);
+    BlockFlatten().run(md);
   }
 
   // Compile code

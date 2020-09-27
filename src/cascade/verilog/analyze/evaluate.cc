@@ -410,6 +410,12 @@ void Evaluate::edit(FopenExpression* fe) {
   }
 }
 
+void Evaluate::edit(TargetExpression* te) {
+  // Control should never reach here. Expression should be compiled to constant.
+  (void) te;
+  assert(false);
+}
+
 void Evaluate::edit(Concatenation* c) {
   auto i = c->begin_exprs();
   c->bit_val_[0].assign(get_value(*i++));
@@ -587,6 +593,12 @@ void Evaluate::Invalidate::edit(FopenExpression* fe) {
   Editor::edit(fe);
 }
 
+void Evaluate::Invalidate::edit(TargetExpression* te) {
+  // Control should never reach here. Expression should be compiled to constant.
+  (void) te;
+  assert(false);
+}
+
 void Evaluate::Invalidate::edit(Concatenation* c) {
   c->bit_val_.clear();
   c->set_flag<0>(true);
@@ -749,6 +761,12 @@ void Evaluate::SelfDetermine::edit(FopenExpression* fe) {
 
   // $fopen() expressions return 32-bit unsigned integer file values.
   fe->bit_val_.push_back(Bits(32, 0));
+}
+
+void Evaluate::SelfDetermine::edit(TargetExpression* te) {
+  // Control should never reach here. Expression should be compiled to constant.
+  (void) te;
+  assert(false);
 }
 
 void Evaluate::SelfDetermine::edit(Concatenation* c) {
@@ -1011,6 +1029,12 @@ void Evaluate::ContextDetermine::edit(FopenExpression* fe) {
   // Nothing to do here. Fopen doesn't determine the size or type of its
   // argument.
   (void) fe;
+}
+
+void Evaluate::ContextDetermine::edit(TargetExpression* te) {
+  // Control should never reach here. Expression should be compiled to constant.
+  (void) te;
+  assert(false);
 }
 
 void Evaluate::ContextDetermine::edit(Identifier* id) {

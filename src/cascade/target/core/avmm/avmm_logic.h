@@ -636,7 +636,7 @@ inline AvmmLogic<V,A,T>::StreamSync::StreamSync(AvmmLogic* av) : Visitor() {
 
 template <size_t V, typename A, typename T>
 inline void AvmmLogic<V,A,T>::StreamSync::visit(const FopenExpression* fe) {
-  assert(fs->get_parent()->is_subclass_of(Node::Tag::declaration));
+  assert(fe->get_parent()->is_subclass_of(Node::Tag::declaration));
   const auto* d = static_cast<const Declaration*>(fe->get_parent());
   d->accept_id(&av_->sync_);
   const auto fd = av_->eval_.get_value(d->get_id()).to_uint();

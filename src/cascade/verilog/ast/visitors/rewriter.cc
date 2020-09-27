@@ -92,6 +92,10 @@ Expression* Rewriter::rewrite(FopenExpression* fe) {
   return fe;
 }
 
+Expression* Rewriter::rewrite(TargetExpression* te) {
+  return te;
+}
+
 Expression* Rewriter::rewrite(Concatenation* c) {
   c->accept_exprs(this);
   return c;

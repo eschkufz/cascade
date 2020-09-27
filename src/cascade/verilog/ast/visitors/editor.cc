@@ -82,6 +82,10 @@ void Editor::edit(FopenExpression* fe) {
   fe->accept_type(this);
 }
 
+void Editor::edit(TargetExpression* te) {
+  // Does nothing.
+}
+
 void Editor::edit(Concatenation* c) {
   c->accept_exprs(this);
 }
