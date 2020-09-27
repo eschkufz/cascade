@@ -105,14 +105,13 @@ class AvmmLogic : public Logic {
     bool there_were_tasks_;
     VarTable<V,A,T> table_;
     std::unordered_map<FId, interfacestream*> streams_;
-    std::vector<std::pair<FId, interfacestream*>> stream_cache_;
-
-    // Stream Caching Helpers:
-    bool is_constant(const Expression* e) const;
 
     // Control Helpers:
     interfacestream* get_stream(FId fd);
     bool handle_tasks();
+
+    // Feof Helpers:
+    void set_feof_mask(FId fd, bool val);
 
     // Indexes system tasks and inserts the identifiers which appear in those
     // tasks into the variable table.
@@ -137,12 +136,22 @@ class AvmmLogic : public Logic {
         void visit(const YieldStatement* ys) override;
     };
 
+    // Synchronizes the state of streams opened with fopen
+    class StreamSync : public Visitor {
+      public:
+        explicit StreamSync(AvmmLogic* av);
+        ~StreamSync() override = default;
+      private:
+        AvmmLogic* av_;
+        void visit(const FopenExpression* fe) override;
+    };
+
     // Synchronizes the locations in the variable table which correspond to the
     // identifiers which appear in an AST subtree. 
-    class Sync : public Visitor {
+    class ValSync : public Visitor {
       public:
-        explicit Sync(AvmmLogic* av);
-        ~Sync() override = default;
+        explicit ValSync(AvmmLogic* av);
+        ~ValSync() override = default;
       private:
         AvmmLogic* av_;
         void visit(const Identifier* id) override;
@@ -150,7 +159,7 @@ class AvmmLogic : public Logic {
 
     // Evaluation Helpers:
     Evaluate eval_;
-    Sync sync_;
+    ValSync sync_;
     Scanf scanf_;
     Printf printf_;
 };
@@ -161,6 +170,12 @@ inline AvmmLogic<V,A,T>::AvmmLogic(Interface* interface, ModuleDeclaration* src,
   cb_ = nullptr;
   slot_ = slot;
   tasks_.push_back(nullptr);
+
+  eval_.set_feof_handler([this](Evaluate* eval, const FeofExpression* fe) {
+    fe->accept_fd(&sync_);
+    const auto fd = eval_.get_value(fe->get_fd()).to_uint();
+    return get_stream(fd)->eof();
+  });
 }
 
 template <size_t V, typename A, typename T>
@@ -288,33 +303,13 @@ inline void AvmmLogic<V,A,T>::set_input(const Input* i) {
 
 template <size_t V, typename A, typename T>
 inline void AvmmLogic<V,A,T>::finalize() {
-  // Iterate over tasks. Now that we have the program state in place, we can
-  // cache pointers to streams to make system task handling faster. Remember,
-  // the task index starts from 1.
-  stream_cache_.resize(tasks_.size(), std::make_pair(0, nullptr));
-  for (size_t i = 1, ie = tasks_.size(); i < ie; ++i) {
-    const auto* t = tasks_[i];
-    const Expression* fd = nullptr;
-    switch (t->get_tag()) {
-      case Node::Tag::get_statement:
-        fd = static_cast<const GetStatement*>(t)->get_fd();
-        break;
-      case Node::Tag::fflush_statement:
-        fd = static_cast<const FflushStatement*>(t)->get_fd();
-        break;
-      case Node::Tag::put_statement: 
-        fd = static_cast<const PutStatement*>(t)->get_fd();
-        break;
-      case Node::Tag::fseek_statement: 
-        fd = static_cast<const FseekStatement*>(t)->get_fd();
-        break;
-      default:
-        continue;
-    }
-    fd->accept(&sync_);
-    const auto fd_val = eval_.get_value(fd).to_uint();
-    stream_cache_[i] = make_pair(fd_val, get_stream(fd_val));
-  }
+  // Note: We ignore the six standard streams, which can never be in the eof
+  // state.
+  // Note: Referencing a file descriptor which was not returned by a call to
+  // fopen is undefined. Iterating over these variable is sufficent for
+  // synchronizing stream state.
+  StreamSync ss(this);
+  src_->accept(&ss);
 }
 
 template <size_t V, typename A, typename T>
@@ -401,63 +396,6 @@ inline const Identifier* AvmmLogic<V,A,T>::open_loop_clock() {
 }
 
 template <size_t V, typename A, typename T>
-inline bool AvmmLogic<V,A,T>::is_constant(const Expression* e) const {
-  // Numbers are constants
-  if (e->is(Node::Tag::number)) {
-    return true;
-  }
-  // Anything other than an identifier might not be
-  if (!e->is(Node::Tag::identifier)) {
-    return false; 
-  }
-
-  // Resolve this id 
-  const auto* id = static_cast<const Identifier*>(e);
-  const auto* r = Resolve().get_resolution(id);
-  assert(r != nullptr);
-  // Anything other than a reg declaration might not be a constant
-  const auto* p = r->get_parent();
-  if (!p->is(Node::Tag::reg_declaration)) {
-    return false;
-  }
-
-  // Anything other than a number or fopen val might not be constant
-  const auto* d = static_cast<const RegDeclaration*>(p);
-  const auto fo = d->get_val()->is(Node::Tag::fopen_expression);
-  const auto n = d->get_val()->is(Node::Tag::number);
-  if (!fo && !n) {
-    return false;
-  }
-
-  // If this fd ever appears on the lhs of an assignment, it might not be a constant
-  for (auto i = Resolve().use_begin(r), ie = Resolve().use_end(r); i != ie; ++i) {
-    const auto* p = (*i)->get_parent();
-    switch (p->get_tag()) {
-      case Node::Tag::blocking_assign:
-        if (static_cast<const BlockingAssign*>(p)->get_lhs() == *i) {
-          return false;
-        }
-        break;
-      case Node::Tag::nonblocking_assign:
-        if (static_cast<const NonblockingAssign*>(p)->get_lhs() == *i) {
-          return false;
-        }
-        break;
-      case Node::Tag::variable_assign:
-        if (static_cast<const VariableAssign*>(p)->get_lhs() == *i) {
-          return false;
-        }
-        break;
-      default:
-        assert(false);
-    }
-  }
-
-  // This is definitely a constant
-  return true;
-}
-
-template <size_t V, typename A, typename T>
 inline interfacestream* AvmmLogic<V,A,T>::get_stream(FId fd) {
   const auto itr = streams_.find(fd);
   if (itr != streams_.end()) {
@@ -494,73 +432,62 @@ inline bool AvmmLogic<V,A,T>::handle_tasks() {
     }
     case Node::Tag::fflush_statement: {
       const auto* fs = static_cast<const FflushStatement*>(task);
-      auto is = stream_cache_[task_id];
-      if (is.second == nullptr) {
-        fs->accept_fd(&sync_);
-        is.first = eval_.get_value(fs->get_fd()).to_uint();
-        is.second = get_stream(is.first);
-      }
-      is.second->clear();
-      is.second->flush();
-      table_.write_control_var(table_.feof_index(), (is.first << 1) | is.second->eof());
+      fs->accept_fd(&sync_);
+      const auto fd = eval_.get_value(fs->get_fd()).to_uint();
+      auto* is = get_stream(fd);
+      
+      is->clear();
+      is->flush();
+      set_feof_mask(fd, is->eof());
 
       break;
     }
     case Node::Tag::fseek_statement: {
       const auto* fs = static_cast<const FseekStatement*>(task);
-      auto is = stream_cache_[task_id];
-      if (is.second == nullptr) {
-        fs->accept_fd(&sync_);
-        is.first = eval_.get_value(fs->get_fd()).to_uint();
-        is.second = get_stream(is.first);
-      }
+      fs->accept_fd(&sync_);
+      const auto fd = eval_.get_value(fs->get_fd()).to_uint();
+      auto* is = get_stream(fd);
 
       fs->accept_offset(&sync_);
       const auto offset = eval_.get_value(fs->get_offset()).to_uint();
       const auto op = eval_.get_value(fs->get_op()).to_uint();
       const auto way = (op == 0) ? std::ios_base::beg : (op == 1) ? std::ios_base::cur : std::ios_base::end;
 
-      is.second->clear();
-      is.second->seekg(offset, way); 
-      is.second->seekp(offset, way); 
-      table_.write_control_var(table_.feof_index(), (is.first << 1) | is.second->eof());
+      is->clear();
+      is->seekg(offset, way); 
+      is->seekp(offset, way); 
+      set_feof_mask(fd, is->eof());
 
       break;
     }
     case Node::Tag::get_statement: {
       const auto* gs = static_cast<const GetStatement*>(task);
-      auto is = stream_cache_[task_id];
-      if (is.second == nullptr) {
-        gs->accept_fd(&sync_);
-        is.first = eval_.get_value(gs->get_fd()).to_uint();
-        is.second = get_stream(is.first);
-      }
+      gs->accept_fd(&sync_);
+      const auto fd = eval_.get_value(gs->get_fd()).to_uint();
+      auto* is = get_stream(fd);
 
-      scanf_.read_without_update(*is.second, &eval_, gs);
+      scanf_.read_without_update(*is, &eval_, gs);
       if (gs->is_non_null_var()) {
         const auto* r = Resolve().get_resolution(gs->get_var());
         assert(r != nullptr);
         table_.write_var(slot_, r, scanf_.get());
       }
-      if (is.second->eof()) {
-        table_.write_control_var(table_.feof_index(), (is.first << 1) | 1);
+      if (is->eof()) {
+        set_feof_mask(fd, true);
       }
 
       break;
     }  
     case Node::Tag::put_statement: {
       const auto* ps = static_cast<const PutStatement*>(task);
-      auto is = stream_cache_[task_id];
-      if (is.second == nullptr) {
-        ps->accept_fd(&sync_);
-        is.first = eval_.get_value(ps->get_fd()).to_uint();
-        is.second = get_stream(is.first);
-      }
+      ps->accept_fd(&sync_);
+      const auto fd = eval_.get_value(ps->get_fd()).to_uint();
+      auto* is = get_stream(fd);
 
       ps->accept_expr(&sync_);
-      printf_.write(*is.second, &eval_, ps);
-      if (is.second->eof()) {
-        table_.write_control_var(table_.feof_index(), (is.first << 1) | 1);
+      printf_.write(*is, &eval_, ps);
+      if (is->eof()) {
+        set_feof_mask(fd, true);
       }
 
       break;
@@ -594,6 +521,12 @@ inline bool AvmmLogic<V,A,T>::handle_tasks() {
       break;
   }
   return true;
+}
+
+template <size_t V, typename A, typename T>
+inline void AvmmLogic<V,A,T>::set_feof_mask(FId fd, bool val) {
+  const auto fid = fd & 0x7fff'ffff;
+  table_.write_control_var(table_.feof_index(), (fid << 1) | (val ? 1 : 0));
 }
 
 template <size_t V, typename A, typename T>
@@ -697,12 +630,31 @@ inline void AvmmLogic<V,A,T>::Inserter::visit(const YieldStatement* ys) {
 }
 
 template <size_t V, typename A, typename T>
-inline AvmmLogic<V,A,T>::Sync::Sync(AvmmLogic* av) : Visitor() {
+inline AvmmLogic<V,A,T>::StreamSync::StreamSync(AvmmLogic* av) : Visitor() {
   av_ = av;
 }
 
 template <size_t V, typename A, typename T>
-inline void AvmmLogic<V,A,T>::Sync::visit(const Identifier* id) {
+inline void AvmmLogic<V,A,T>::StreamSync::visit(const FopenExpression* fe) {
+  assert(fe->get_parent()->is_subclass_of(Node::Tag::declaration));
+  const auto* d = static_cast<const Declaration*>(fe->get_parent());
+  d->accept_id(&av_->sync_);
+  const auto fd = av_->eval_.get_value(d->get_id()).to_uint();
+
+  auto* is = av_->get_stream(fd);
+  is->peek();
+  if (is->eof()) {
+    av_->set_feof_mask(fd, true);
+  } 
+}
+
+template <size_t V, typename A, typename T>
+inline AvmmLogic<V,A,T>::ValSync::ValSync(AvmmLogic* av) : Visitor() {
+  av_ = av;
+}
+
+template <size_t V, typename A, typename T>
+inline void AvmmLogic<V,A,T>::ValSync::visit(const Identifier* id) {
   id->accept_dim(this);
   const auto* r = Resolve().get_resolution(id);
   assert(r != nullptr);

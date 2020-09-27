@@ -139,6 +139,10 @@ void Printer::visit(const FopenExpression* fe) {
   *this << Color::RED << ")" << Color::RESET;
 }
 
+void Printer::visit(const TargetExpression* te) {
+  *this << Color::YELLOW << "$target" << Color::RED << "()" << Color::RESET;
+}
+
 void Printer::visit(const Concatenation* c) {
   *this << Color::RED << "{" << Color::RESET;
   int cnt = 0;

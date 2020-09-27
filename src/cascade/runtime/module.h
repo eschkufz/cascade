@@ -111,7 +111,6 @@ class Module {
     size_t version_;
 
     // Helper Methods:
-    ModuleDeclaration* regenerate_ir_source(size_t ignore);
     void compile_and_replace(size_t ignore);
     void compile_and_replace(ModuleDeclaration* md, size_t version, const std::string& id, size_t pass);
 };

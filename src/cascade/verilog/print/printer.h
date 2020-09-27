@@ -55,6 +55,7 @@ class Printer : public Visitor {
     void visit(const ConditionalExpression* ce) override;
     void visit(const FeofExpression* fe) override;
     void visit(const FopenExpression* fe) override;
+    void visit(const TargetExpression* te) override;
     void visit(const Concatenation* c) override;
     void visit(const Identifier* i) override;
     void visit(const MultipleConcatenation* mc) override;

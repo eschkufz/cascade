@@ -499,6 +499,7 @@
   friend class ConditionalExpression; \
   friend class FeofExpression; \
   friend class FopenExpression; \
+  friend class TargetExpression; \
   friend class Concatenation; \
   friend class Identifier; \
   friend class MultipleConcatenation; \

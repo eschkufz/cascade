@@ -108,6 +108,10 @@ Expression* Builder::build(const FopenExpression* fe) {
   );
 }
 
+Expression* Builder::build(const TargetExpression* te) {
+  return new TargetExpression();
+}
+
 Expression* Builder::build(const Concatenation* c) {
   auto* res = new Concatenation();
   c->accept_exprs(this, res->back_inserter_exprs());

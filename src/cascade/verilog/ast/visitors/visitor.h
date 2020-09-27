@@ -52,6 +52,7 @@ struct Visitor {
   virtual void visit(const ConditionalExpression* ce);
   virtual void visit(const FeofExpression* fe);
   virtual void visit(const FopenExpression* fe);
+  virtual void visit(const TargetExpression* te);
   virtual void visit(const Concatenation* c);
   virtual void visit(const Identifier* i);
   virtual void visit(const MultipleConcatenation* mc);

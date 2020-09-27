@@ -119,7 +119,14 @@ inline ModuleItem* TextMangle<V,A,T>::build(const PortDeclaration* pd) {
 
 template <size_t V, typename A, typename T>
 inline Expression* TextMangle<V,A,T>::build(const FeofExpression* fe) {
-  return new Identifier(new Id("__feof"), fe->clone_fd());
+  return new Identifier(
+    new Id("__feof"), 
+    new BinaryExpression(
+      fe->clone_fd(), 
+      BinaryExpression::Op::AMP, 
+      new Number(Bits(std::numeric_limits<T>::digits, 0x7fff'ffff), Number::Format::HEX)
+    )
+  );
 }
 
 template <size_t V, typename A, typename T>

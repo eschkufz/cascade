@@ -466,6 +466,7 @@ IF_TEXT     ([^`]*)
 "$scanf"      return yyParser::make_SYS_SCANF(parser->get_loc());
 "$showscopes" return yyParser::make_SYS_SHOWSCOPES(parser->get_loc());
 "$showvars"   return yyParser::make_SYS_SHOWVARS(parser->get_loc());
+"$target"     return yyParser::make_SYS_TARGET(parser->get_loc());
 "$warning"    return yyParser::make_SYS_WARNING(parser->get_loc());
 "$write"      return yyParser::make_SYS_WRITE(parser->get_loc());
 "$yield"      return yyParser::make_SYS_YIELD(parser->get_loc());

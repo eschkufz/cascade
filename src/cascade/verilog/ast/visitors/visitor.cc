@@ -82,6 +82,10 @@ void Visitor::visit(const FopenExpression* fe) {
   fe->accept_type(this);
 }
 
+void Visitor::visit(const TargetExpression* te) {
+  // Does nothing.
+}
+
 void Visitor::visit(const Concatenation* c) {
   c->accept_exprs(this);
 }

@@ -41,6 +41,7 @@
 #include "verilog/ast/types/conditional_expression.h"
 #include "verilog/ast/types/feof_expression.h"
 #include "verilog/ast/types/fopen_expression.h"
+#include "verilog/ast/types/target_expression.h"
 #include "verilog/ast/types/concatenation.h"
 #include "verilog/ast/types/identifier.h"
 #include "verilog/ast/types/multiple_concatenation.h"

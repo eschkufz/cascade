@@ -52,6 +52,7 @@ struct Editor {
   virtual void edit(ConditionalExpression* ce);
   virtual void edit(FeofExpression* fe);
   virtual void edit(FopenExpression* fe);
+  virtual void edit(TargetExpression* te);
   virtual void edit(Concatenation* c);
   virtual void edit(Identifier* i);
   virtual void edit(MultipleConcatenation* mc);
