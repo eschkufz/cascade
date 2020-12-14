@@ -118,9 +118,9 @@ module test(clk);
   reg[31:0] eCtr;
   reg[31:0] dCtr;
 
-  integer inFd = $fopen("data/test/benchmark/adpcm/in.dat", "r");
-  integer encFd = $fopen("data/test/benchmark/adpcm/enc.dat", "r");
-  integer decFd = $fopen("data/test/benchmark/adpcm/dec.dat", "r");
+  integer inFd = $fopen("share/cascade/test/benchmark/adpcm/in.dat", "r");
+  integer encFd = $fopen("share/cascade/test/benchmark/adpcm/enc.dat", "r");
+  integer decFd = $fopen("share/cascade/test/benchmark/adpcm/dec.dat", "r");
   integer i,j,k;
 
   initial begin
