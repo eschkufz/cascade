@@ -50,11 +50,12 @@ class fdbuf : public std::streambuf {
     typedef std::streambuf::int_type int_type;
     typedef std::streambuf::pos_type pos_type;
     typedef std::streambuf::off_type off_type;
-   
+
     // Constructors:
-    explicit fdbuf(int fd);
+    explicit fdbuf(int fd, uint32_t gid = 0);
     ~fdbuf() override = default;
 
+    uint32_t get_gid();
   private:
     // File Descriptor
     int fd_;
@@ -62,8 +63,10 @@ class fdbuf : public std::streambuf {
     std::vector<char_type> get_;
     // Put/Output/Write Area
     std::vector<char_type> put_;
+    // The global id.
+    uint32_t gid_;
 
-    // Locales: 
+    // Locales:
     void imbue(const std::locale& loc) override;
 
     // Positioning:
@@ -74,6 +77,7 @@ class fdbuf : public std::streambuf {
 
     // Get Area:
     std::streamsize showmanyc() override;
+    template<int b> int_type underflowHelper();
     int_type underflow() override;
     int_type uflow() override;
     std::streamsize xsgetn(char_type* s, std::streamsize count) override;
@@ -110,17 +114,29 @@ class ofdstream : public std::ostream {
 
 class fdstream : public std::iostream {
   public:
-    fdstream(int fd);
+    fdstream(int fd, uint32_t gid = 0);
     ~fdstream() override = default;
 
+  uint32_t get_gid();
   private:
     fdbuf buf_;
 };
 
-inline fdbuf::fdbuf(int fd) : get_(1), put_(1) {
+inline uint32_t fdstream::get_gid()
+{
+  return this->buf_.get_gid();
+}
+
+inline fdbuf::fdbuf(int fd, uint32_t gid) : get_(1), put_(1) {
   fd_ = fd;
+  this->gid_ = gid;
   setg(get_.data(), get_.data(), get_.data());
   setp(put_.data(), put_.data()+1);
+}
+
+inline uint32_t fdbuf::get_gid()
+{
+  return this->gid_;
 }
 
 inline void fdbuf::imbue(const std::locale& loc) {
@@ -150,10 +166,11 @@ inline fdbuf::pos_type fdbuf::seekpos(pos_type pos, std::ios_base::openmode whic
 }
 
 inline int fdbuf::sync() {
-  const uint32_t n = pptr()-pbase();
+  const uint32_t n = pptr() - pbase();
+  const uint32_t arr[2] = {n, this->gid_};
   if (n == 0) {
     return 0;
-  } else if (send((const char*)&n, sizeof(n)) == -1) {
+  } else if (send((const char*)arr, sizeof(arr)) == -1) {
     return -1;
   } else if (send((const char*)pbase(), n) == -1) {
     return -1;
@@ -167,34 +184,35 @@ inline std::streamsize fdbuf::showmanyc() {
   return egptr() - gptr();
 }
 
-inline fdbuf::int_type fdbuf::underflow() {
-  uint32_t n = 0;
-  if (recv((char_type*)&n, sizeof(n)) == -1) {
-    return traits_type::eof(); 
-  }
-  if (n > get_.size()) {
-    get_.resize(n);
-  }
-  if (recv((char_type*)get_.data(), n) == -1) {
-    return traits_type::eof();
-  }
-  setg(get_.data(), get_.data(), get_.data()+n);
-  return traits_type::to_int_type(get_[0]);
+inline fdbuf::int_type fdbuf::underflow()
+{
+  return this->underflowHelper<0>();
 }
 
-inline fdbuf::int_type fdbuf::uflow() {
+template<int b>
+inline fdbuf::int_type fdbuf::underflowHelper()
+{
   uint32_t n = 0;
-  if (recv((char_type*)&n, sizeof(n)) == -1) {
-    return traits_type::eof(); 
+  uint32_t arr[2];
+  if (recv((char_type*)arr, sizeof(arr)) == -1) {
+    return traits_type::eof();
   }
+  this->gid_ = arr[1];
+  n = arr[0];
   if (n > get_.size()) {
     get_.resize(n);
   }
   if (recv((char_type*)get_.data(), n) == -1) {
     return traits_type::eof();
   }
-  setg(get_.data(), get_.data()+1, get_.data()+n);
+  setg(get_.data(), get_.data() + b, get_.data()+n);
   return traits_type::to_int_type(get_[0]);
+
+}
+
+inline fdbuf::int_type fdbuf::uflow()
+{
+  return this->underflowHelper<1>();
 }
 
 inline std::streamsize fdbuf::xsgetn(char_type* s, std::streamsize count) {
@@ -204,7 +222,7 @@ inline std::streamsize fdbuf::xsgetn(char_type* s, std::streamsize count) {
     chunk = std::min(egptr()-gptr(), count);
     std::copy(gptr(), gptr()+chunk, s+total);
     total += chunk;
-  } 
+  }
   while ((total < count) && (underflow() != -1));
   setg(eback(), gptr()+chunk, egptr());
   return total;
@@ -274,7 +292,7 @@ inline ifdstream::ifdstream(int fd) : std::istream(&buf_), buf_(fd) { }
 
 inline ofdstream::ofdstream(int fd) : std::ostream(&buf_), buf_(fd) { }
 
-inline fdstream::fdstream(int fd) : std::iostream(&buf_), buf_(fd) { }
+inline fdstream::fdstream(int fd, uint32_t gid) : std::iostream(&buf_), buf_(fd, gid) { }
 
 } // namespace cascade
 

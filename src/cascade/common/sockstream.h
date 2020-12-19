@@ -43,13 +43,13 @@
 namespace cascade {
 
 // This class is a specialized instance of an fdsrream which is used to
-// encapsulate the behavior of a TCP or UNIX Domain socket. 
+// encapsulate the behavior of a TCP or UNIX Domain socket.
 
 class sockstream : public fdstream {
   public:
-    sockstream(int fd);
-    sockstream(const char* path);
-    sockstream(const char* host, uint32_t port);
+    sockstream(int fd, uint32_t gid = 0);
+    sockstream(uint32_t gid, const char* path);
+    sockstream(const char* host, uint32_t port, uint32_t gid = 0);
     ~sockstream() override;
 
     // Returns true if an error occurred while creating this socket
@@ -66,11 +66,11 @@ class sockstream : public fdstream {
     int fd_;
 };
 
-inline sockstream::sockstream(int fd) : fdstream(raw_fd(fd)) { }
+inline sockstream::sockstream(int fd, uint32_t gid) : fdstream(raw_fd(fd), gid) { }
 
-inline sockstream::sockstream(const char* path) : fdstream(unix_sock(path)) { }
+inline sockstream::sockstream(uint32_t gid, const char* path) : fdstream(unix_sock(path), gid) { }
 
-inline sockstream::sockstream(const char* host, uint32_t port) : fdstream(inet_sock(host, port)) { }
+inline sockstream::sockstream(const char* host, uint32_t port, uint32_t gid) : fdstream(inet_sock(host, port), gid) { }
 
 inline sockstream::~sockstream() {
   if (fd_ != -1) {
@@ -107,7 +107,7 @@ inline int sockstream::unix_sock(const char* path) {
   if ((fd_ != -1) && (::connect(fd_, (struct sockaddr*)&dest, sizeof(dest)) != 0)) {
     ::close(fd_);
     fd_ = -1;
-  } 
+  }
   return fd_;
 }
 
@@ -122,7 +122,7 @@ inline int sockstream::inet_sock(const char* host, uint32_t port) {
   if ((fd_ != -1) && (::connect(fd_, (struct sockaddr*)&dest, sizeof(dest)) != 0)) {
     ::close(fd_);
     fd_ = -1;
-  } 
+  }
   return fd_;
 }
 

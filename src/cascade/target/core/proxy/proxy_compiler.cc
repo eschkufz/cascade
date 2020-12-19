@@ -36,7 +36,7 @@ using namespace std;
 
 namespace cascade::proxy {
 
-ProxyCompiler::ProxyCompiler() : CoreCompiler() { 
+ProxyCompiler::ProxyCompiler() : CoreCompiler() {
   pool_.set_num_threads(4);
   pool_.run();
   running_ = true;
@@ -106,7 +106,7 @@ void ProxyCompiler::async_loop(sockstream* sock) {
 
     // The only message we expect here is the beginning of a state-safe
     // handshake or a notification that the remote connection was closed.
-    Rpc rpc; 
+    Rpc rpc;
     rpc.deserialize(*sock);
     if (rpc.type_ != Rpc::Type::STATE_SAFE_BEGIN) {
       return;
@@ -130,7 +130,7 @@ void ProxyCompiler::stop_compile(Engine::Id id) {
   // connection was opened, all further communication will succeed.
 
   for (auto& c : conns_) {
-    auto* sock = get_sock(c.first);
+    auto* sock = get_sock(c.first, this->gid_);
     assert(sock != nullptr);
     Rpc(Rpc::Type::STOP_COMPILE, c.second.pid, id, 0).serialize(*sock);
     sock->flush();
@@ -174,18 +174,19 @@ bool ProxyCompiler::open(const string& loc) {
   rpc.deserialize(*ci.async_sock);
   assert(rpc.type_ == Rpc::Type::OKAY);
   ci.pid = rpc.pid_;
+  this->gid_ = ci.async_sock->get_gid();
 
   // Step 2: Open the synchronous socket and send a register request. This
   // time around, send the pid so that the new socket can be associated with
   // this connection in the remote compiler.
-  ci.sync_sock = get_sock(loc);
+  ci.sync_sock = get_sock(loc, this->gid_);
   assert(ci.sync_sock != nullptr);
   Rpc(Rpc::Type::OPEN_CONN_2, ci.pid, 0, 0).serialize(*ci.sync_sock);
   ci.sync_sock->flush();
   rpc.deserialize(*ci.sync_sock);
   assert(rpc.type_ == Rpc::Type::OKAY);
 
-  // Step 3: Create a thread to listen for asynchronous messages 
+  // Step 3: Create a thread to listen for asynchronous messages
   pool_.insert([this, ci]{async_loop(ci.async_sock);});
 
   // Step 4: Archive the connection
@@ -193,8 +194,8 @@ bool ProxyCompiler::open(const string& loc) {
   return true;
 }
 
-sockstream* ProxyCompiler::get_sock(const string& loc) {
-  auto* sock = (loc.find(':') != string::npos) ? get_tcp_sock(loc) : get_unix_sock(loc);
+sockstream* ProxyCompiler::get_sock(const string& loc, uint32_t gid) {
+  auto* sock = (loc.find(':') != string::npos) ? get_tcp_sock(loc, gid) : get_unix_sock(loc, gid);
   if (sock->error()) {
     delete sock;
     return nullptr;
@@ -202,17 +203,17 @@ sockstream* ProxyCompiler::get_sock(const string& loc) {
   return sock;
 }
 
-sockstream* ProxyCompiler::get_tcp_sock(const string& loc) {
+sockstream* ProxyCompiler::get_tcp_sock(const string& loc, uint32_t gid) {
   stringstream ss(loc);
   string host;
   uint32_t port;
   getline(ss, host, ':');
   ss >> port;
-  return new sockstream(host.c_str(), port);
+  return new sockstream(host.c_str(), port, gid);
 }
 
-sockstream* ProxyCompiler::get_unix_sock(const string& loc) {
-  return new sockstream(loc.c_str()); 
+sockstream* ProxyCompiler::get_unix_sock(const string& loc, uint32_t gid) {
+  return new sockstream(gid, loc.c_str());
 }
 
 } // namespace cascade::proxy

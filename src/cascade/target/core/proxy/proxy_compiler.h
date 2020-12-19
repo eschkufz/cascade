@@ -63,6 +63,7 @@ class ProxyCompiler : public CoreCompiler {
     // Asynchronous Control for State-Safe Requests:
     ThreadPool pool_;
     bool running_;
+    uint32_t gid_;
 
     // Core Compiler Interface:
     void stop_async() override;
@@ -86,9 +87,9 @@ class ProxyCompiler : public CoreCompiler {
     bool open(const std::string& loc);
     bool close(const ConnInfo& ci);
 
-    sockstream* get_sock(const std::string& loc);
-    sockstream* get_tcp_sock(const std::string& loc);
-    sockstream* get_unix_sock(const std::string& loc);
+    sockstream* get_sock(const std::string& loc, uint32_t gid = 0);
+    sockstream* get_tcp_sock(const std::string& loc, uint32_t gid = 0);
+    sockstream* get_unix_sock(const std::string& loc, uint32_t gid = 0);
 };
 
 template <typename T>
@@ -102,9 +103,9 @@ inline ProxyCore<T>* ProxyCompiler::generic_compile(Engine::Id id, ModuleDeclara
   }
   const auto& conn = conns_[loc];
 
-  // Change __loc to "remote" and send a compile request via a temp socket.  
+  // Change __loc to "remote" and send a compile request via a temp socket.
   md->get_attrs()->set_or_replace("__loc", new String("remote"));
-  auto* sock = get_sock(loc);
+  auto* sock = get_sock(loc, this->gid_);
   if (sock == nullptr) {
     get_compiler()->error("Unable to establish connection with remote compiler");
     delete md;
